@@ -62,7 +62,7 @@ function M.create_autocmd_object(group,autocmds)
  function Obj:delete()
   if self.active==false then return end
   vim.api.nvim_clear_autocmds({group=group})
-  vim.api.vim_del_augroup_by_name(group)
+  vim.api.nvim_del_augroup_by_name(group)
   self.active=false
  end
  return Obj
