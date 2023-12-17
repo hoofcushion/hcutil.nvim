@@ -5,17 +5,19 @@ A plugin for Neovim to provide utilities for my other plugins.
 ## Usage
 
 ```lua
-local opts={
+local HCUtil=require("hcutil")
+local M={}
+local default_opts={
  hlgroup     ="RainbowCursor",
  autocmd     ={
   autostart=true,
-  interval =72,
+  interval =90,
   group    ="RainbowCursor",
   event    ={"CursorMoved","CursorMovedI"},
  },
  timer       ={
   autostart=true,
-  interval=14400,
+  interval=18000,
  },
  color_amount=360,
  hue_start   =0,
@@ -27,9 +29,17 @@ local opts={
   create_api=true,
  },
 }
-local HCUtil=require("hcutil")
-validate_val("opts",opts,"table")
-HCUtil.validate_tab(opts,{
+M.options=vim.deepcopy(default_opts)
+local function number(x)
+ return type(x)=="number"
+end
+local function integer(x)
+ return number(x) and x%1==0
+end
+local function is_string(x)
+ return type(x)=="string"
+end
+local valitab={
  hlgroup     ="string",
  autocmd     ={
   autostart="boolean",
@@ -49,6 +59,20 @@ HCUtil.validate_tab(opts,{
   create_cmd="boolean",
   create_var="boolean",
   create_api="boolean",
+  reuse_opts="boolean",
  },
-})
+}
+---@param user_options table
+function M.setup(user_options)
+ if type(user_options)~="table" then
+  return
+ end
+ local opts=vim.tbl_deep_extend("force",default_opts,user_options)
+ HCUtil.validate_tab(opts,valitab)
+ if opts.others.reuse_opts==true then
+  opts=vim.tbl_deep_extend("force",M.options,user_options)
+ end
+ M.options=opts
+end
+return M
 ```
