@@ -10,6 +10,7 @@ local function include(main,sub)
  end
  return main
 end
+---@class HCUtil
 M=include(M,require("hcutil.autocmd"))
 M=include(M,require("hcutil.command"))
 M=include(M,require("hcutil.validate"))

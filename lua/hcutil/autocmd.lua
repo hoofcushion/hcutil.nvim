@@ -26,7 +26,7 @@ end
 ---@field group string
 ---@field autocmds autocmds
 ---@field active boolean
-local Autocmd=require("util.class"):__new()
+local Autocmd=require("hcutil.class").Class:__new()
 ---@class Autocmd_Object_Private: Autocmd_Object
 ---@field Create_Autocmd fun(self)
 ---@field Parse_Autocmd fun(self)
