@@ -13,7 +13,7 @@ end
 ---@class HCUtil
 M=include(M,require("hcutil.autocmd"))
 M=include(M,require("hcutil.command"))
-M=include(M,require("hcutil.validate"))
 M=include(M,require("hcutil.class"))
+M.Validate=require("hcutil.validate")
 M.include=include
 return M

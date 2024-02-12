@@ -1,131 +1,255 @@
-local M={}
----@param main string # Main table's name
----@param sub any # Index of Main table `main`
----@return string # Main table + Index
-local function table_index_connect(main,sub)
- if type(sub)=="string" then
-  if string.find(sub,"[A-Za-z][A-Za-z0-9]*") then
-   return main.."."..sub
+local function empty()
+end
+local function self_iter(any,done)
+ if done~=true then
+  return true,any
+ end
+end
+---@generic T: any, V
+---@param any T
+---@return fun(any:V[],i?:integer):integer,V
+---@return T?
+---@return integer?
+local pipairs=function(any)
+ if any==nil then
+  return empty
+ end
+ if type(any)=="table" then
+  return ipairs(any)
+ end
+ return self_iter,any
+end
+---@param any any
+---@return string
+local function qoute_tostring(any)
+ if type(any)=="string" then
+  return '"'..any..'"'
+ end
+ return tostring(any)
+end
+---@param union valitab[]
+---@return string
+local function union_tostring(union)
+ local ret={}
+ for i,v in ipairs(union) do
+  if type(v)=="string" then
+   ret[i]=v
   else
-   return main..'["'..sub..'"]'
+   ret[i]="...others"
+   break
   end
+ end
+ return "["..table.concat(ret,",").."]"
+end
+---@param enum table<any,true>[]
+---@return string
+local function enum_tostring(enum)
+ local ret={}
+ for k in pairs(enum) do
+  if type(k)=="string" then
+   ret[#ret+1]=qoute_tostring(k)
+  else
+   ret[#ret+1]="...others"
+   break
+  end
+ end
+ return "["..table.concat(ret,",").."]"
+end
+---@param valitab valitab
+---@return string
+local function valitab_tostring(valitab)
+ if valitab=="string" then
+  return valitab
+ end
+ local t=type(valitab)
+ if t=="string" then
+  return valitab
+ end
+ if t~="table" then
+  return "Wrong valitab"
+ end
+ if valitab[1] then
+  return union_tostring(valitab)
+ end
+ return enum_tostring(valitab)
+end
+---@param main string
+---@param sub any
+---@return string
+local function index_connect(main,sub)
+ if type(sub)=="string" then
+  if string.find(sub,"^[_A-Za-z][A-Za-z0-9]*$") then
+   return main.."."..sub
+  end
+  return main..'["'..sub..'"]'
  end
  return main.."["..tostring(sub).."]"
 end
-local Validate={}
-M.Validate=Validate
----@param value any
----@param target string|string[]
 ---@param name string
----@return boolean # Succeed
-function Validate.type(value,target,name)
- return vim.validate({[name]={value,target}})
+---@param valitab valitab
+---@param got any
+local function terror(name,valitab,got)
+ if name==nil then name="Some Value" end
+ error(
+  [[Type Error: ]]..name
+  ..[[, expect ]]..valitab_tostring(valitab)
+  ..[[, got ]]..qoute_tostring(got)
+ )
 end
----@param value any
----@param target {[1]:(fun():boolean),[2]:string}
+local M={}
+---@param val any
+---@param expect string
 ---@param name string
----@return boolean # Succeed
-function Validate.fn(value,target,name)
- return vim.validate({[name]={value,target[1],target[2]}})
-end
----@param main table
----@param tab table
----@param name string
----@return boolean # Succeed
-function Validate.array(main,tab,name)
- for key,sub in ipairs(main) do
-  local sub_name=table_index_connect(name,key)
-  Validate.sub(sub,tab,sub_name)
+---@return boolean
+function M.type(val,expect,name)
+ local got=type(val)
+ if got~=expect then
+  terror(name,expect,val)
  end
  return true
 end
----@param main table
----@param tab table
+---@param val any
+---@param data valitab
 ---@param name string
----@return boolean # Succeed
-function Validate.map(main,tab,name)
- for key,sub_tab in pairs(tab) do
-  local sub_name=table_index_connect(name,key)
-  local sub=main[key]
-  Validate.sub(sub,sub_tab,sub_name)
+---@return boolean
+function M.union(val,data,name)
+ for _,v in pipairs(data) do
+  if pcall(M.vali,val,v,name) then
+   return true
+  end
+ end
+ terror(name,data,val)
+ return false
+end
+---@param val any
+---@param data valitab
+---@param name string
+---@return boolean
+function M.list(val,data,name)
+ for i,v in ipairs(val) do
+  M.vali(v,data,index_connect(name,i))
  end
  return true
 end
-local function get_enums_string(enum_tab)
- local enums={}
- for enum in pairs(enum_tab) do
-  table.insert(enums,enum)
- end
- return table.concat(enums,", ")
-end
----@param main any
----@param tab table
+---@param val any
+---@param data valitab.dict.data
 ---@param name string
----@return boolean # Succeed
-function Validate.enum(main,tab,name)
- local s=pcall(Validate.type,main,tab[2],name)
- if s then
-  return s
+---@return boolean
+function M.dict(val,data,name)
+ M.type(val,"table",name)
+ local vk,vv=data.k,data.v
+ for k,v in pairs(val) do
+  local n=index_connect(name,k)
+  M.vali(k,vk,n..":key")
+  M.vali(v,vv,n)
  end
- local valifn={
-  [1]=function(x)
-   return tab[1][x]~=nil
-  end,
-  [2]=get_enums_string(tab[1]),
- }
- Validate.fn(main,valifn,name)
  return true
 end
-local attribute={
- array=true,
- map=true,
+---@param val any
+---@param data valitab.enum.data
+---@param name string
+---@return boolean
+function M.enum(val,data,name)
+ if val==nil then
+  return true
+ end
+ if data[val]==nil then
+  terror(name,data,val)
+ end
+ return true
+end
+---@param val any
+---@param data valitab.enum.data
+---@param name string
+---@return boolean
+function M.penum(val,data,name)
+ if val==nil then
+  terror(name,data,val)
+ end
+ if data[val]==nil then
+  terror(name,data,val)
+ end
+ return true
+end
+---@param val any
+---@param vali table
+---@param name string
+function M.recur(val,vali,name)
+ ---@cast vali -string,-function
+ for k,v in pairs(vali) do
+  M.vali(val[k],v,index_connect(name,k))
+ end
+ return true
+end
+---@alias valitab.func.data fun(x):boolean,string
+---@alias valitab.dict.data {k:valitab,v:valitab}
+---@alias valitab.enum.data table<any,true>
+---@class valitab.attr
+---@field attr "dict"|"list"|"recur"|"union"|"enum"|"penum"|"type"
+---@field data valitab|valitab.dict.data|valitab.enum.data|nil
+local valid_attr={
+ dict=true,
  enum=true,
+ list=true,
+ penum=true,
+ recur=true,
+ type=true,
+ union=true,
+ func=true,
 }
----@param main any
----@param tab table
+---@param val any
+---@param vali valitab.func.data
 ---@param name string
----@return boolean # Succeed
-function Validate.attribute(main,tab,name)
- local i=1
- while tab[i]~=nil do
-  if tab[i]=="array" then
-   Validate.array(main,tab[i+1],name)
-  elseif tab[i]=="map" then
-   Validate.map(main,tab[i+1],name)
-  else -- if tab[i]=="enum" then
-   Validate.enum(main,tab[i+1],name)
-  end
-  i=i+2
+---@return boolean
+function M.func(val,vali,name)
+ local ret,expect=vali(val)
+ if ret==false then
+  terror(name,expect,val)
  end
  return true
 end
----@param main any
----@param tab string|table
+---@alias valitab type|type[]|valitab.attr|valitab.enum.data|valitab.func.data|valitab.func.data[]
+---@param val any
+---@param vali valitab
 ---@param name string
----@return boolean # Succeed
-function Validate.sub(main,tab,name)
- Validate.type(tab,{"string","table"},name)
- if type(tab)=="string" then
-  Validate.type(main,tab,name)
- else
-  local target=tab[1]
-  if attribute[target] then
-   Validate.attribute(main,tab,name)
-  elseif target==nil then
-   Validate.map(main,tab,name)
-  elseif type(target)=="function" then
-   Validate.fn(main,tab,name)
+---@return boolean
+function M.vali(val,vali,name)
+ local t=type(vali)
+ if t=="string" then
+  return M.type(val,vali,name)
+ elseif t=="function" then
+  return M.func(val,vali,name)
+ elseif t=="table" then
+  local attr=vali.attr
+  if attr~=nil and valid_attr[attr] then
+   return M[attr](val,vali.data,name)
   end
+  return M.recur(val,vali,name)
  end
- return true
+ return false
 end
----@param main table
----@param tab table
----@param name string|nil
----@return boolean # Succeed
-function Validate.tab(main,tab,name)
- if name==nil then name="main_table" end
- Validate.map(main,tab,name)
- return true
+function M.mk_plist(any)
+ return {
+  attr="union",
+  data={
+   any,
+   {
+    attr="list",
+    data=any,
+   },
+  },
+ }
+end
+function M.mk_union(...)
+ return {
+  attr="union",
+  data={...},
+ }
+end
+function M.mk_enum(enum)
+ return {
+  attr="enum",
+  data=enum,
+ }
 end
 return M
