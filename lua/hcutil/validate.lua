@@ -96,12 +96,46 @@ local function terror(name,valitab,got)
   ..[[, got ]]..qoute_tostring(got)
  )
 end
+---@enum (key) special_type
+local special_type={
+ integer=true,["true"]=true,["false"]=true,float=true,
+}
+local special={}
+---@param val any
+function special.integer(val)
+ return math.floor(val)==val
+end
+---@param val any
+function special.float(val)
+ return math.floor(val)~=val
+end
+---@param val any
+special["true"]=function(val)
+ return val==true
+end
+---@param val any
+special["false"]=function(val)
+ return val==false
+end
+---@param val any
+---@param expect special_type
+---@param name string
+function special.type(val,expect,name)
+ local ok=special[expect](val,name)
+ if ok==false then
+  terror(name,expect,val)
+ end
+ return true
+end
 local M={}
 ---@param val any
----@param expect string
+---@param expect vtype
 ---@param name string
 ---@return boolean
 function M.type(val,expect,name)
+ if special_type[expect] then
+  return special.type(val,expect,name)
+ end
  local got=type(val)
  if got~=expect then
   terror(name,expect,val)
@@ -120,6 +154,16 @@ function M.union(val,data,name)
  end
  terror(name,data,val)
  return false
+end
+---@param val any
+---@param data valitab
+---@param name string
+---@return boolean
+function M.punion(val,data,name)
+ for _,v in pipairs(data) do
+  M.vali(val,v,name)
+ end
+ return true
 end
 ---@param val table
 ---@param data valitab
@@ -184,15 +228,16 @@ end
 ---@alias valitab.dict.data {k:valitab,v:valitab}
 ---@alias valitab.enum.data table<any,true>
 ---@class valitab.attr
----@field attr "dict"|"list"|"recur"|"union"|"enum"|"penum"|"type"
+---@field attr "dict"|"list"|"recur"|"punion"|"union"|"enum"|"penum"|"type"
 ---@field data valitab|valitab.dict.data|valitab.enum.data|nil
 local valid_attr={
  dict=true,
  enum=true,
- list=true,
  penum=true,
+ list=true,
  recur=true,
  type=true,
+ punion=true,
  union=true,
  func=true,
 }
@@ -212,7 +257,8 @@ function M.func(val,vali,name)
  end
  return true
 end
----@alias valitab type|type[]|valitab.attr|valitab.enum.data|valitab.func.data|valitab.func.data[]
+---@alias vtype type|special_type
+---@alias valitab vtype|vtype[]|valitab.attr|valitab.enum.data|valitab.func.data|valitab.func.data[]
 ---@param val any
 ---@param vali valitab
 ---@param name string
@@ -235,6 +281,44 @@ function M.vali(val,vali,name)
  end
  return false
 end
+function M.mk(attr,data)
+ return {
+  attr=attr,
+  data=data,
+ }
+end
+function M.mk_union(...)
+ return M.mk("union",{...})
+end
+function M.mk_dict(k,v)
+ return M.mk("dict",{k=k,v=v})
+end
+function M.mk_punion(...)
+ return M.mk("union",{...})
+end
+local mk_enum_tab=function (...)
+ local enum={}
+ local len=select("#",...)
+ for i=1,len do
+  enum[select(i,...)]=true
+ end
+ return enum
+end
+function M.mk_enum(...)
+ return M.mk("enum",mk_enum_tab(...))
+end
+function M.mk_penum(...)
+ return M.mk("penum",mk_enum_tab(...))
+end
+function M.mk_square(dot)
+ return {
+  attr="list",
+  data={
+   attr="list",
+   data=dot,
+  },
+ }
+end
 function M.mk_plist(any)
  return {
   attr="union",
@@ -245,18 +329,6 @@ function M.mk_plist(any)
     data=any,
    },
   },
- }
-end
-function M.mk_union(...)
- return {
-  attr="union",
-  data={...},
- }
-end
-function M.mk_enum(enum)
- return {
-  attr="enum",
-  data=enum,
  }
 end
 return M
