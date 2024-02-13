@@ -121,7 +121,7 @@ function M.union(val,data,name)
  terror(name,data,val)
  return false
 end
----@param val any
+---@param val table
 ---@param data valitab
 ---@param name string
 ---@return boolean
@@ -131,12 +131,11 @@ function M.list(val,data,name)
  end
  return true
 end
----@param val any
+---@param val table
 ---@param data valitab.dict.data
 ---@param name string
 ---@return boolean
 function M.dict(val,data,name)
- M.type(val,"table",name)
  local vk,vv=data.k,data.v
  for k,v in pairs(val) do
   local n=index_connect(name,k)
@@ -171,7 +170,7 @@ function M.penum(val,data,name)
  end
  return true
 end
----@param val any
+---@param val table
 ---@param vali table
 ---@param name string
 function M.recur(val,vali,name)
@@ -221,6 +220,7 @@ function M.vali(val,vali,name)
   return M.func(val,vali,name)
  elseif t=="table" then
   local attr=vali.attr
+  M.type(val,"table",name)
   if attr~=nil and valid_attr[attr] then
    return M[attr](val,vali.data,name)
   end
