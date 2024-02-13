@@ -196,6 +196,11 @@ local valid_attr={
  union=true,
  func=true,
 }
+local tbl_attr={
+ dict=true,
+ list=true,
+ recur=true,
+}
 ---@param val any
 ---@param vali valitab.func.data
 ---@param name string
@@ -220,7 +225,9 @@ function M.vali(val,vali,name)
   return M.func(val,vali,name)
  elseif t=="table" then
   local attr=vali.attr
-  M.type(val,"table",name)
+  if tbl_attr[attr] then
+   M.type(val,"table",name)
+  end
   if attr~=nil and valid_attr[attr] then
    return M[attr](val,vali.data,name)
   end
