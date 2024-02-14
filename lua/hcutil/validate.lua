@@ -78,7 +78,7 @@ end
 ---@return string
 local function index_connect(main,sub)
  if type(sub)=="string" then
-  if string.find(sub,"^[_A-Za-z][A-Za-z0-9]*$") then
+  if string.find(sub,"^[_A-Za-z][_A-Za-z0-9]*$") then
    return main.."."..sub
   end
   return main..'["'..sub..'"]'
